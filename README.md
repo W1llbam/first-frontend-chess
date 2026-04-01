@@ -1,3 +1,7 @@
+# Next Additions
+
+- Add "Play with friend" button on main page that launches user to a different page where an invitation can be created.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
