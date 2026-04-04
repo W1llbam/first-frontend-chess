@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { Routes, Route } from 'react-router-dom'
+import HomePage from './pages/HomePage.tsx'
+import InvitePage from './pages/InvitePage.tsx'
 import './App.css'
 
 function App() {
@@ -9,7 +9,10 @@ function App() {
 
   return (
     <>
-
+    <Routes>
+      <Route path="/" element={<HomePage />}/>
+      <Route path="/invite" element={<InvitePage />}/>
+    </Routes>
     </>
   )
 }
