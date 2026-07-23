@@ -1,7 +1,4 @@
 import { useState } from 'react'
-import { Routes, Route } from 'react-router-dom'
-import HomePage from './pages/HomePage.tsx'
-import InvitePage from './pages/InvitePage.tsx'
 import './App.css'
 import Header from './components/Header.tsx'
 import Hero from './components/Hero.tsx'
@@ -16,11 +13,6 @@ function App() {
     <Hero />
     <Footer />
 
-
-    <Routes>
-      <Route path="/" element={<HomePage />}/>
-      <Route path="/invite" element={<InvitePage />}/>
-    </Routes>
     </>
   )
 }
