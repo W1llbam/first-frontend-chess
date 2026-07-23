@@ -1,4 +1,5 @@
 import './Hero.css'
+import { Link } from "react-router"
 
 function Hero() {
     return (
@@ -10,7 +11,9 @@ function Hero() {
                     Create a private match, share the invite link, and start playing.
                 </p>
 
-                <button type="button">Create Match</button>
+                <Link className="create-match-button" to="/create-match">
+                Create Match
+                </Link>
 
             </section>
         </main>
