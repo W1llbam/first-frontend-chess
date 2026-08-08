@@ -6,12 +6,50 @@
     align-items: center;
     text-align: center;
     gap: 1rem;
+    padding: 2rem;
+    box-sizing: border-box;
 }
 
-.hero button {
-    padding: 0.8rem 1.4rem;
-    border: none;
-    border-radius: 0.5rem;
+.create-match-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.75rem;
+    padding: 0.85rem 1.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 0.6rem;
+    color: #fff;
+    background: var(--accent);
+    box-shadow: 0 8px 18px rgba(170, 59, 255, 0.2);
     cursor: pointer;
     font-size: 1rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.create-match-button:hover {
+    background: color-mix(in srgb, var(--accent) 88%, #000);
+    box-shadow: 0 12px 24px rgba(170, 59, 255, 0.28);
+    transform: translateY(-2px);
+}
+
+.create-match-button:active {
+    transform: translateY(0);
+}
+
+.create-match-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+}
+
+@media (max-width: 600px) {
+    .hero {
+        min-height: 65vh;
+        padding-inline: 1.25rem;
+    }
+
+    .create-match-button {
+        width: min(100%, 18rem);
+    }
 }
