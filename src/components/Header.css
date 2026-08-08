@@ -3,5 +3,44 @@ header {
     justify-content: space-between;
     align-items: center;
 
-    padding: 1rem 2rem;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+}
+
+header > a {
+    color: var(--text-h);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+}
+
+header > a::before {
+    content: '♞';
+    color: var(--accent);
+    margin-right: 0.5rem;
+}
+
+header nav a {
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+header nav a:hover {
+    color: var(--accent);
+}
+
+header a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+    border-radius: 3px;
+}
+
+@media (max-width: 600px) {
+    header {
+        padding: 1rem 1.25rem;
+    }
 }
