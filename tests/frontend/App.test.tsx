@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import App from '../App'
+import App from '../../frontend/src/App'
 import { renderWithRouter } from './render'
 
 describe('App routes', () => {

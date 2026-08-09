@@ -1,11 +1,11 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createInvite } from '../api/invites'
-import CreateMatchPage from '../pages/CreateMatchPage'
-import { renderWithRouter } from './render'
+import { createInvite } from '../../../frontend/src/api/invites'
+import CreateMatchPage from '../../../frontend/src/pages/CreateMatchPage'
+import { renderWithRouter } from '../render'
 
-vi.mock('../api/invites', () => ({
+vi.mock('../../../frontend/src/api/invites', () => ({
   createInvite: vi.fn(),
 }))
 

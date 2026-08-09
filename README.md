@@ -3,6 +3,7 @@
 ## Run the frontend
 
 ```powershell
+cd frontend
 npm install
 npm run dev
 ```
@@ -12,9 +13,9 @@ npm run dev
 In a second terminal:
 
 ```powershell
-python -m venv backend/.venv
-backend/.venv/Scripts/python -m pip install -r backend/requirements.txt
-backend/.venv/Scripts/python -m uvicorn app.main:app --app-dir backend --reload
+cd backend
+uv sync
+uv run uvicorn app.main:app --reload
 ```
 
 The Vite development server forwards `/api` requests to the backend at `http://127.0.0.1:8000`. FastAPI's interactive API documentation is available at `http://127.0.0.1:8000/docs`.
@@ -22,10 +23,10 @@ The Vite development server forwards `/api` requests to the backend at `http://1
 ## Checks
 
 ```powershell
-npm test
+npm run test:frontend
 npm run lint
-npm run build
-backend/.venv/Scripts/python -m pytest backend/tests
+npm run build:frontend
+uv run --directory backend pytest ../tests/backend
 ```
 
 # React + TypeScript + Vite
