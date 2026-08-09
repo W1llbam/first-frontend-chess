@@ -1,6 +1,32 @@
-# Next Additions
+# Chess With Friends
 
-- Add "Play with friend" button on main page that launches user to a different page where an invitation can be created.
+## Run the frontend
+
+```powershell
+npm install
+npm run dev
+```
+
+## Run the backend
+
+In a second terminal:
+
+```powershell
+python -m venv backend/.venv
+backend/.venv/Scripts/python -m pip install -r backend/requirements.txt
+backend/.venv/Scripts/python -m uvicorn app.main:app --app-dir backend --reload
+```
+
+The Vite development server forwards `/api` requests to the backend at `http://127.0.0.1:8000`. FastAPI's interactive API documentation is available at `http://127.0.0.1:8000/docs`.
+
+## Checks
+
+```powershell
+npm test
+npm run lint
+npm run build
+backend/.venv/Scripts/python -m pytest backend/tests
+```
 
 # React + TypeScript + Vite
 
