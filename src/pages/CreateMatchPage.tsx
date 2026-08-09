@@ -1,6 +1,6 @@
 
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link } from 'react-router-dom'
 import './CreateMatchPage.css'
 
 type ColorChoice = 'white' | 'black' | 'random'
