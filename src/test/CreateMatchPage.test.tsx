@@ -1,8 +1,8 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import CreateMatchPage from './CreateMatchPage'
-import { renderWithRouter } from '../test/render'
+import CreateMatchPage from '../pages/CreateMatchPage'
+import { renderWithRouter } from './render'
 
 describe('CreateMatchPage', () => {
   it('selects random color and unlimited time by default', () => {

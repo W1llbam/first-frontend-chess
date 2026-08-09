@@ -1,8 +1,8 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import App from './App'
-import { renderWithRouter } from './test/render'
+import App from '../App'
+import { renderWithRouter } from './render'
 
 describe('App routes', () => {
   it('shows the home page at the root route', () => {
