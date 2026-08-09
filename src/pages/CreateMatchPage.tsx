@@ -1,14 +1,46 @@
 
-import { useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+    createInvite,
+    type ColorChoice,
+    type Invite,
+    type TimeControl,
+} from '../api/invites'
 import './CreateMatchPage.css'
-
-type ColorChoice = 'white' | 'black' | 'random'
-type TimeControl = 'unlimited' | '10-minutes' | '5-minutes'
 
 function CreateMatchPage() {
     const [color, setColor] = useState<ColorChoice>('random')
     const [timeControl, setTimeControl] = useState<TimeControl>('unlimited')
+    const [invite, setInvite] = useState<Invite | null>(null)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault()
+        setIsSubmitting(true)
+        setError(null)
+
+        try {
+            setInvite(await createInvite({ color, timeControl }))
+        } catch (caughtError) {
+            setError(
+                caughtError instanceof Error
+                    ? caughtError.message
+                    : 'Unable to create the match invite. Please try again.',
+            )
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    const inviteUrl = invite ? `${window.location.origin}/invite/${invite.id}` : null
+    const expiry = invite
+        ? new Intl.DateTimeFormat(undefined, {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+          }).format(new Date(invite.expiresAt))
+        : null
 
     return (
         <main className="create-match-page">
@@ -19,7 +51,7 @@ function CreateMatchPage() {
                     <p>Choose your settings, then invite a friend to play.</p>
                 </div>
 
-                <form className="match-settings-form">
+                <form className="match-settings-form" onSubmit={handleSubmit}>
                     <fieldset>
                         <legend>Choose your color</legend>
                         <div className="option-grid option-grid--colors">
@@ -117,10 +149,22 @@ function CreateMatchPage() {
                         </div>
                     </fieldset>
 
-                    <button className="create-invite-button" type="button" disabled>
-                        Create Match Invite
+                    <button className="create-invite-button" type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Creating invite...' : 'Create Match Invite'}
                     </button>
-                    <p className="invite-note">Invite creation will be connected next.</p>
+
+                    {error && <p className="invite-error" role="alert">{error}</p>}
+
+                    {invite && inviteUrl && expiry && (
+                        <section className="invite-result" aria-labelledby="invite-link-title">
+                            <h2 id="invite-link-title">Invite link ready</h2>
+                            <p>Share this link with your friend. It expires at {expiry}.</p>
+                            <label className="invite-link-label" htmlFor="invite-link">
+                                Invite link
+                            </label>
+                            <input id="invite-link" readOnly type="text" value={inviteUrl} />
+                        </section>
+                    )}
                 </form>
 
                 <Link className="back-home-link" to="/">← Back to home</Link>

@@ -1,10 +1,21 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInvite } from '../api/invites'
 import CreateMatchPage from '../pages/CreateMatchPage'
 import { renderWithRouter } from './render'
 
+vi.mock('../api/invites', () => ({
+  createInvite: vi.fn(),
+}))
+
+const mockedCreateInvite = vi.mocked(createInvite)
+
 describe('CreateMatchPage', () => {
+  beforeEach(() => {
+    mockedCreateInvite.mockReset()
+  })
+
   it('selects random color and unlimited time by default', () => {
     renderWithRouter(<CreateMatchPage />)
 
@@ -25,14 +36,43 @@ describe('CreateMatchPage', () => {
     expect(screen.getByRole('radio', { name: /unlimited/i })).not.toBeChecked()
   })
 
-  it('shows that invite creation is not available yet', () => {
+  it('creates an invite and shows its shareable URL', async () => {
+    const user = userEvent.setup()
+    mockedCreateInvite.mockResolvedValue({
+      id: 'invite-123',
+      status: 'pending',
+      color: 'random',
+      timeControl: 'unlimited',
+      expiresAt: '2026-08-09T12:00:00+00:00',
+    })
     renderWithRouter(<CreateMatchPage />)
 
+    await user.click(screen.getByRole('button', { name: 'Create Match Invite' }))
+
+    expect(mockedCreateInvite).toHaveBeenCalledWith({
+      color: 'random',
+      timeControl: 'unlimited',
+    })
     expect(
-      screen.getByRole('button', { name: 'Create Match Invite' }),
-    ).toBeDisabled()
+      await screen.findByRole('heading', { name: 'Invite link ready' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Invite link')).toHaveValue(
+      'http://localhost:3000/invite/invite-123',
+    )
+  })
+
+  it('shows an error and allows retrying when invite creation fails', async () => {
+    const user = userEvent.setup()
+    mockedCreateInvite.mockRejectedValue(
+      new Error('Unable to create the match invite. Please try again.'),
+    )
+    renderWithRouter(<CreateMatchPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Create Match Invite' }))
+
     expect(
-      screen.getByText('Invite creation will be connected next.'),
-    ).toBeVisible()
+      await screen.findByRole('alert'),
+    ).toHaveTextContent('Unable to create the match invite. Please try again.')
+    expect(screen.getByRole('button', { name: 'Create Match Invite' })).toBeEnabled()
   })
 })
