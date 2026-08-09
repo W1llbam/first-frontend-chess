@@ -19,5 +19,14 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      "vitest/consistent-test-it": [
+        "error",
+        {
+          fn: "it",
+          withinDescribe: "it"
+        }
+      ]
+    }
   },
 ])
