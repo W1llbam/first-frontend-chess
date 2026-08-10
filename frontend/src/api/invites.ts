@@ -14,6 +14,16 @@ export interface Invite {
   expiresAt: string
 }
 
+export class InviteApiError extends Error {
+  status: number
+
+  constructor(status: number) {
+    super('Unable to load the match invite.')
+    this.name = 'InviteApiError'
+    this.status = status
+  }
+}
+
 export async function createInvite(request: CreateInviteRequest): Promise<Invite> {
   const response = await fetch('/api/invites', {
     method: 'POST',
@@ -23,6 +33,16 @@ export async function createInvite(request: CreateInviteRequest): Promise<Invite
 
   if (!response.ok) {
     throw new Error('Unable to create the match invite. Please try again.')
+  }
+
+  return response.json() as Promise<Invite>
+}
+
+export async function getInvite(inviteId: string): Promise<Invite> {
+  const response = await fetch(`/api/invites/${encodeURIComponent(inviteId)}`)
+
+  if (!response.ok) {
+    throw new InviteApiError(response.status)
   }
 
   return response.json() as Promise<Invite>

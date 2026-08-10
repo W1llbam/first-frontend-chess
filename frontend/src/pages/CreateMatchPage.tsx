@@ -1,10 +1,9 @@
 
 import { type FormEvent, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
     createInvite,
     type ColorChoice,
-    type Invite,
     type TimeControl,
 } from '../api/invites'
 import './CreateMatchPage.css'
@@ -12,9 +11,9 @@ import './CreateMatchPage.css'
 function CreateMatchPage() {
     const [color, setColor] = useState<ColorChoice>('random')
     const [timeControl, setTimeControl] = useState<TimeControl>('unlimited')
-    const [invite, setInvite] = useState<Invite | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const navigate = useNavigate()
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -22,7 +21,8 @@ function CreateMatchPage() {
         setError(null)
 
         try {
-            setInvite(await createInvite({ color, timeControl }))
+            const invite = await createInvite({ color, timeControl })
+            navigate(`/invite/${invite.id}`)
         } catch (caughtError) {
             setError(
                 caughtError instanceof Error
@@ -33,14 +33,6 @@ function CreateMatchPage() {
             setIsSubmitting(false)
         }
     }
-
-    const inviteUrl = invite ? `${window.location.origin}/invite/${invite.id}` : null
-    const expiry = invite
-        ? new Intl.DateTimeFormat(undefined, {
-              dateStyle: 'medium',
-              timeStyle: 'short',
-          }).format(new Date(invite.expiresAt))
-        : null
 
     return (
         <main className="create-match-page">
@@ -155,16 +147,6 @@ function CreateMatchPage() {
 
                     {error && <p className="invite-error" role="alert">{error}</p>}
 
-                    {invite && inviteUrl && expiry && (
-                        <section className="invite-result" aria-labelledby="invite-link-title">
-                            <h2 id="invite-link-title">Invite link ready</h2>
-                            <p>Share this link with your friend. It expires at {expiry}.</p>
-                            <label className="invite-link-label" htmlFor="invite-link">
-                                Invite link
-                            </label>
-                            <input id="invite-link" readOnly type="text" value={inviteUrl} />
-                        </section>
-                    )}
                 </form>
 
                 <Link className="back-home-link" to="/">← Back to home</Link>
