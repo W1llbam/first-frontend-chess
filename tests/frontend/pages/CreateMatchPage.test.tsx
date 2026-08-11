@@ -14,6 +14,10 @@ const mockedCreateInvite = vi.mocked(createInvite)
 describe('CreateMatchPage', () => {
   beforeEach(() => {
     mockedCreateInvite.mockReset()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
   })
 
   it('selects random color and unlimited time by default', () => {
@@ -53,12 +57,6 @@ describe('CreateMatchPage', () => {
       color: 'random',
       timeControl: 'unlimited',
     })
-    expect(
-      await screen.findByRole('heading', { name: 'Invite link ready' }),
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText('Invite link')).toHaveValue(
-      'http://localhost:3000/invite/invite-123',
-    )
   })
 
   it('shows an error and allows retrying when invite creation fails', async () => {

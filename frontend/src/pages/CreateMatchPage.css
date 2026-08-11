@@ -164,39 +164,6 @@ legend {
     text-align: center;
 }
 
-.invite-result {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1.25rem;
-    border: 1px solid var(--accent-border);
-    border-radius: 0.65rem;
-    background: var(--accent-bg);
-    text-align: left;
-}
-
-.invite-result h2 {
-    margin: 0;
-    font-size: 1.2rem;
-}
-
-.invite-link-label {
-    color: var(--text-h);
-    font-size: 0.9rem;
-    font-weight: 700;
-}
-
-.invite-result input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.4rem;
-    color: var(--text-h);
-    background: var(--bg);
-    font: inherit;
-}
-
 .back-home-link {
     display: inline-block;
     margin-top: 2rem;
@@ -235,4 +202,5 @@ legend {
     .option-card {
         min-height: 3.5rem;
     }
+
 }

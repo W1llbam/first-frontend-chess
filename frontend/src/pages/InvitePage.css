@@ -1,0 +1,86 @@
+.invite-page {
+    display: flex;
+    justify-content: center;
+    padding: 4.5rem 1.5rem;
+}
+
+.invite-page-card {
+    width: min(100%, 38rem);
+    padding: 2.5rem;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: var(--bg);
+    box-shadow: var(--shadow);
+    text-align: left;
+}
+
+.invite-page-card h1 {
+    margin: 0 0 0.75rem;
+    color: var(--text-h);
+    font-size: 2.2rem;
+}
+
+.invite-page-card p {
+    color: var(--text);
+}
+
+.invite-link-label {
+    display: block;
+    margin-top: 1.5rem;
+    color: var(--text-h);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.invite-link-actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+}
+
+.invite-link-actions input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    color: var(--text-h);
+    background: var(--bg);
+    font: inherit;
+}
+
+.invite-link-actions button {
+    flex: 0 0 auto;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    color: #fff;
+    background: var(--accent);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+}
+
+.copy-status {
+    min-height: 1.25rem;
+    margin: 0.5rem 0 0;
+    color: #b42318;
+    font-size: 0.85rem;
+}
+
+.invite-page-link {
+    display: inline-block;
+    margin-top: 1.5rem;
+    color: var(--accent);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.invite-page-link:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+    .invite-page { padding: 2rem 1rem; }
+    .invite-page-card { padding: 1.5rem; }
+    .invite-page-card h1 { font-size: 1.8rem; }
+    .invite-link-actions { flex-direction: column; }
+}

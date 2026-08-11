@@ -4,6 +4,7 @@ import Hero from './components/Hero.tsx'
 import Footer from './components/Footer.tsx'
 import { Route, Routes } from "react-router-dom"
 import CreateMatchPage from './pages/CreateMatchPage.tsx'
+import InvitePage from './pages/InvitePage.tsx'
 
 function HomePage() {
   return <Hero />
@@ -17,6 +18,7 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />}/>
       <Route path="/create-match" element={<CreateMatchPage />}/>
+      <Route path="/invite/:inviteId" element={<InvitePage />}/>
     </Routes>
     <Footer />
 
