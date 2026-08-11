@@ -48,6 +48,9 @@ describe('CreateMatchPage', () => {
       color: 'random',
       timeControl: 'unlimited',
       expiresAt: '2026-08-09T12:00:00+00:00',
+      matchId: 'match-123',
+      creatorToken: 'creator-token',
+      creatorColor: 'white',
     })
     renderWithRouter(<CreateMatchPage />)
 
