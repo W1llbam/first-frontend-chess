@@ -3,7 +3,13 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from app.models import CreateInviteRequest, InviteResponse
+from app.models import (
+    CreateInviteRequest,
+    CreateInviteResponse,
+    InviteResponse,
+    JoinMatchResponse,
+    MatchStatusResponse,
+)
 
 INVITE_LIFETIME = timedelta(minutes=10)
 
@@ -33,18 +39,55 @@ class InviteDatabase:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS matches (
+                    id TEXT PRIMARY KEY,
+                    invite_id TEXT NOT NULL UNIQUE,
+                    first_color TEXT NOT NULL,
+                    player_count INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    creator_token TEXT,
+                    opponent_token TEXT,
+                    creator_color TEXT,
+                    opponent_color TEXT
+                )
+                """
+            )
+            columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(matches)").fetchall()
+            }
+            for column, definition in (
+                ("creator_token", "TEXT"),
+                ("opponent_token", "TEXT"),
+                ("creator_color", "TEXT"),
+                ("opponent_color", "TEXT"),
+            ):
+                if column not in columns:
+                    connection.execute(f"ALTER TABLE matches ADD COLUMN {column} {definition}")
 
     def create_invite(
         self, request: CreateInviteRequest, now: datetime | None = None
-    ) -> InviteResponse:
+    ) -> CreateInviteResponse:
         created_at = now or datetime.now(timezone.utc)
         expires_at = created_at + INVITE_LIFETIME
-        invite = InviteResponse(
+        creator_color = (
+            secrets.choice(("white", "black"))
+            if request.color.value == "random"
+            else request.color.value
+        )
+        match_id = secrets.token_urlsafe(24)
+        creator_token = secrets.token_urlsafe(32)
+        invite = CreateInviteResponse(
             id=secrets.token_urlsafe(24),
             status="pending",
             color=request.color,
             time_control=request.time_control,
             expires_at=expires_at,
+            match_id=match_id,
+            creator_token=creator_token,
+            creator_color=creator_color,
         )
 
         with self._connect() as connection:
@@ -60,6 +103,21 @@ class InviteDatabase:
                     invite.status,
                     created_at.isoformat(),
                     invite.expires_at.isoformat(),
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO matches (
+                    id, invite_id, first_color, player_count, status,
+                    creator_token, creator_color
+                ) VALUES (?, ?, ?, 1, 'waiting', ?, ?)
+                """,
+                (
+                    match_id,
+                    invite.id,
+                    creator_color,
+                    creator_token,
+                    creator_color,
                 ),
             )
 
@@ -93,3 +151,80 @@ class InviteDatabase:
                 "UPDATE invites SET status = 'expired' WHERE id = ?",
                 (invite_id,),
             )
+
+    def is_creator_token(self, invite_id: str, player_token: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT creator_token FROM matches WHERE invite_id = ?",
+                (invite_id,),
+            ).fetchone()
+        return row is not None and row["creator_token"] == player_token
+
+    def join_invite(
+        self, invite: InviteResponse
+    ) -> JoinMatchResponse | None:
+        """Add one anonymous opponent to an invite, or return None if it is full."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            match = connection.execute(
+                """
+                SELECT id, first_color, player_count, opponent_token, opponent_color
+                FROM matches
+                WHERE invite_id = ?
+                """,
+                (invite.id,),
+            ).fetchone()
+
+            if match is None:
+                return None
+
+            if match["player_count"] >= 2:
+                return None
+
+            second_color = "black" if match["first_color"] == "white" else "white"
+            opponent_token = secrets.token_urlsafe(32)
+            connection.execute(
+                """
+                UPDATE matches
+                SET player_count = 2, status = 'ready',
+                    opponent_token = ?, opponent_color = ?
+                WHERE id = ?
+                """,
+                (opponent_token, second_color, match["id"]),
+            )
+            return JoinMatchResponse(
+                match_id=match["id"],
+                player_token=opponent_token,
+                color=second_color,
+                status="ready",
+            )
+
+    def get_match_for_token(
+        self, match_id: str, player_token: str
+    ) -> MatchStatusResponse | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, status, creator_token, opponent_token,
+                       creator_color, opponent_color, first_color
+                FROM matches
+                WHERE id = ?
+                """,
+                (match_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        if player_token == row["creator_token"]:
+            color = row["creator_color"] or row["first_color"]
+        elif player_token == row["opponent_token"]:
+            color = row["opponent_color"]
+        else:
+            return None
+
+        return MatchStatusResponse(
+            match_id=row["id"],
+            color=color,
+            status=row["status"],
+        )
