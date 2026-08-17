@@ -46,12 +46,10 @@ export function getLegalTargets(fen: string, from: Square): Square[] {
     return chess.moves({ square: from, verbose: true }).map((move) => move.to)
 }
 
-export function applyMove(fen: string, from: Square, to: Square): string {
+export function getPromotionForMove(fen: string, from: Square, to: Square): 'q' | null {
     const chess = new Chess(fen)
-    chess.move({ from, to, promotion: 'q' })
-    return chess.fen()
-}
+    const piece = chess.get(from)
+    const reachesBackRank = to[1] === '1' || to[1] === '8'
 
-export function getTurn(fen: string): Color {
-    return new Chess(fen).turn()
+    return piece?.type === 'p' && reachesBackRank ? 'q' : null
 }
