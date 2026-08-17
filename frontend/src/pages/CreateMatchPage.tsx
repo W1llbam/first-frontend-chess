@@ -22,7 +22,12 @@ function CreateMatchPage() {
 
         try {
             const invite = await createInvite({ color, timeControl })
-            navigate(`/invite/${invite.id}`)
+            localStorage.setItem(`chess.match.${invite.matchId}`, JSON.stringify({
+                inviteId: invite.id,
+                playerToken: invite.creatorToken,
+                color: invite.creatorColor,
+            }))
+            navigate(`/match/${invite.matchId}`)
         } catch (caughtError) {
             setError(
                 caughtError instanceof Error

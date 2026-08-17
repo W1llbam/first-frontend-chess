@@ -1,17 +1,17 @@
 import { screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
-import { getInvite, InviteApiError } from '../../../frontend/src/api/invites'
+import { getInvite, InviteApiError, joinInvite } from '../../../frontend/src/api/invites'
 import InvitePage from '../../../frontend/src/pages/InvitePage'
 import { renderWithRouter } from '../render'
 
 vi.mock('../../../frontend/src/api/invites', async () => {
     const actual = await vi.importActual<typeof import('../../../frontend/src/api/invites')>('../../../frontend/src/api/invites')
-    return { ...actual, getInvite: vi.fn() }
+    return { ...actual, getInvite: vi.fn(), joinInvite: vi.fn() }
 })
 
 const mockedGetInvite = vi.mocked(getInvite)
+const mockedJoinInvite = vi.mocked(joinInvite)
 
 const invite = {
     id: 'invite-123',
@@ -31,30 +31,47 @@ function renderInvitePage() {
 describe('InvitePage', () => {
     beforeEach(() => {
         mockedGetInvite.mockReset()
+        mockedJoinInvite.mockReset()
+        localStorage.clear()
         Object.defineProperty(navigator, 'clipboard', {
             configurable: true,
             value: { writeText: vi.fn().mockResolvedValue(undefined) },
         })
     })
 
-    it('loads and displays a valid invite', async () => {
+    it('automatically joins a valid invite and navigates to the match', async () => {
         mockedGetInvite.mockResolvedValue(invite)
-        renderInvitePage()
+        mockedJoinInvite.mockResolvedValue({
+            matchId: 'match-123', playerToken: 'opponent-token', color: 'black', status: 'ready',
+        })
+        renderWithRouter(
+            <Routes>
+                <Route path="/invite/:inviteId" element={<InvitePage />} />
+                <Route path="/match/:matchId" element={<p>Match page</p>} />
+            </Routes>,
+            '/invite/invite-123',
+        )
 
-        expect(await screen.findByRole('heading', { name: 'Your invite link is ready' })).toBeInTheDocument()
-        expect(screen.getByLabelText('Invite link')).toHaveValue('http://localhost:3000/invite/invite-123')
+        expect(await screen.findByText('Match page')).toBeInTheDocument()
+        expect(mockedJoinInvite).toHaveBeenCalledWith('invite-123')
+        expect(localStorage.getItem('chess.match.match-123')).toContain('opponent-token')
     })
 
-    it('copies the invite link', async () => {
-        const user = userEvent.setup()
-        const writeText = vi.fn().mockResolvedValue(undefined)
-        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    it('redirects the creator back to their existing match instead of joining', async () => {
         mockedGetInvite.mockResolvedValue(invite)
-        renderInvitePage()
+        localStorage.setItem('chess.match.match-123', JSON.stringify({
+            inviteId: 'invite-123', playerToken: 'creator-token', color: 'white',
+        }))
+        renderWithRouter(
+            <Routes>
+                <Route path="/invite/:inviteId" element={<InvitePage />} />
+                <Route path="/match/:matchId" element={<p>Creator match</p>} />
+            </Routes>,
+            '/invite/invite-123',
+        )
 
-        await user.click(await screen.findByRole('button', { name: 'Copy link' }))
-
-        expect(writeText).toHaveBeenCalledWith('http://localhost:3000/invite/invite-123')
+        expect(await screen.findByText('Creator match')).toBeInTheDocument()
+        expect(mockedJoinInvite).not.toHaveBeenCalled()
     })
 
     it.each([

@@ -25,10 +25,16 @@ def test_create_invite_persists_and_returns_it(tmp_path):
     assert created_invite["color"] == "random"
     assert created_invite["timeControl"] == "10-minutes"
     assert created_invite["id"]
+    assert created_invite["matchId"]
+    assert created_invite["creatorToken"]
+    assert created_invite["creatorColor"] in {"white", "black"}
 
     fetched_response = client.get(f"/api/invites/{created_invite['id']}")
     assert fetched_response.status_code == 200
-    assert fetched_response.json() == created_invite
+    assert fetched_response.json() == {
+        key: created_invite[key]
+        for key in ("id", "status", "color", "timeControl", "expiresAt")
+    }
 
 
 def test_create_invite_rejects_invalid_settings(tmp_path):
@@ -64,3 +70,76 @@ def test_get_expired_invite_returns_gone(tmp_path):
 
     assert response.status_code == 410
     assert response.json()["detail"] == "This invite has expired."
+
+
+def test_creator_cannot_join_and_opponent_completes_match(tmp_path):
+    client = create_client(tmp_path)
+    invite = client.post(
+        "/api/invites",
+        json={"color": "white", "timeControl": "unlimited"},
+    ).json()
+
+    creator_response = client.post(
+        f"/api/invites/{invite['id']}/join",
+        headers={"X-Player-Token": invite["creatorToken"]},
+    )
+    opponent_response = client.post(f"/api/invites/{invite['id']}/join")
+
+    assert creator_response.status_code == 409
+    assert opponent_response.status_code == 200
+    assert opponent_response.json()["matchId"] == invite["matchId"]
+    assert opponent_response.json()["color"] == "black"
+    assert opponent_response.json()["status"] == "ready"
+
+    creator_status = client.get(
+        f"/api/matches/{invite['matchId']}",
+        headers={"X-Player-Token": invite["creatorToken"]},
+    )
+    opponent_status = client.get(
+        f"/api/matches/{invite['matchId']}",
+        headers={"X-Player-Token": opponent_response.json()["playerToken"]},
+    )
+    assert creator_status.json()["color"] == "white"
+    assert creator_status.json()["status"] == "ready"
+    assert opponent_status.json()["color"] == "black"
+
+
+def test_join_full_invite_returns_conflict(tmp_path):
+    client = create_client(tmp_path)
+    invite = client.post(
+        "/api/invites",
+        json={"color": "black", "timeControl": "unlimited"},
+    ).json()
+
+    client.post(f"/api/invites/{invite['id']}/join")
+    response = client.post(f"/api/invites/{invite['id']}/join")
+
+    assert response.status_code == 409
+
+
+def test_match_status_requires_a_valid_player_token(tmp_path):
+    client = create_client(tmp_path)
+    invite = client.post(
+        "/api/invites",
+        json={"color": "random", "timeControl": "unlimited"},
+    ).json()
+
+    assert client.get(f"/api/matches/{invite['matchId']}").status_code == 401
+    assert client.get(
+        f"/api/matches/{invite['matchId']}",
+        headers={"X-Player-Token": "invalid"},
+    ).status_code == 404
+
+
+def test_join_expired_invite_returns_gone(tmp_path):
+    database_path = tmp_path / "test.db"
+    app = create_app(database_path)
+    database = InviteDatabase(database_path)
+    invite = database.create_invite(
+        CreateInviteRequest(color="white", timeControl="unlimited"),
+        now=datetime.now(timezone.utc) - timedelta(minutes=11),
+    )
+
+    response = TestClient(app).post(f"/api/invites/{invite.id}/join")
+
+    assert response.status_code == 410

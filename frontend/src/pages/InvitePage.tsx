@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { getInvite, InviteApiError, type Invite } from '../api/invites'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { getInvite, InviteApiError, joinInvite, type Invite } from '../api/invites'
 import './InvitePage.css'
 
 function InvitePage() {
     const { inviteId } = useParams<{ inviteId: string }>()
+    const navigate = useNavigate()
     const [invite, setInvite] = useState<Invite | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [errorStatus, setErrorStatus] = useState<number | 'unknown' | null>(null)
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+    const [isJoining, setIsJoining] = useState(false)
     const copyResetTimeout = useRef<number | null>(null)
 
     useEffect(() => {
@@ -16,13 +18,34 @@ function InvitePage() {
             return
         }
 
+        const creatorMatch = findStoredMatchForInvite(inviteId)
+        if (creatorMatch) {
+            navigate(`/match/${creatorMatch.matchId}`, { replace: true })
+            return
+        }
+
         getInvite(inviteId)
-            .then(setInvite)
+            .then((loadedInvite) => {
+                setInvite(loadedInvite)
+                setIsJoining(true)
+                return joinInvite(inviteId)
+            })
+            .then((match) => {
+                localStorage.setItem(`chess.match.${match.matchId}`, JSON.stringify({
+                    inviteId,
+                    playerToken: match.playerToken,
+                    color: match.color,
+                }))
+                navigate(`/match/${match.matchId}`, { replace: true })
+            })
             .catch((caughtError: unknown) => {
                 setErrorStatus(caughtError instanceof InviteApiError ? caughtError.status : 'unknown')
             })
-            .finally(() => setIsLoading(false))
-    }, [inviteId])
+            .finally(() => {
+                setIsLoading(false)
+                setIsJoining(false)
+            })
+    }, [inviteId, navigate])
 
     useEffect(() => () => {
         if (copyResetTimeout.current !== null) {
@@ -47,8 +70,8 @@ function InvitePage() {
         return <main className="invite-page"><p>Unable to load this invite. Please try again.</p></main>
     }
 
-    if (isLoading) {
-        return <main className="invite-page"><p>Loading invite...</p></main>
+    if (isLoading || isJoining) {
+        return <main className="invite-page"><p>{isJoining ? 'Joining match...' : 'Loading invite...'}</p></main>
     }
 
     if (errorStatus !== null || !invite) {
@@ -89,6 +112,27 @@ function InvitePage() {
             </section>
         </main>
     )
+}
+
+function findStoredMatchForInvite(inviteId: string): { matchId: string } | null {
+    for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index)
+        if (!key?.startsWith('chess.match.')) continue
+
+        const value = localStorage.getItem(key)
+        if (!value) continue
+
+        try {
+            const session = JSON.parse(value) as { inviteId?: string; color?: string }
+            if (session.inviteId === inviteId && (session.color === 'white' || session.color === 'black')) {
+                return { matchId: key.slice('chess.match.'.length) }
+            }
+        } catch {
+            localStorage.removeItem(key)
+        }
+    }
+
+    return null
 }
 
 export default InvitePage
