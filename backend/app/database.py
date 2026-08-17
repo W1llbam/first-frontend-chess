@@ -3,15 +3,48 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import chess
+
 from app.models import (
     CreateInviteRequest,
     CreateInviteResponse,
     InviteResponse,
     JoinMatchResponse,
     MatchStatusResponse,
+    MoveRequest,
+    MoveResponse,
 )
 
 INVITE_LIFETIME = timedelta(minutes=10)
+STARTING_FEN = chess.Board().fen()
+
+
+class MatchMoveError(Exception):
+    """Base class for expected move-submission failures."""
+
+
+class MatchNotFoundError(MatchMoveError):
+    pass
+
+
+class MatchNotReadyError(MatchMoveError):
+    pass
+
+
+class WrongTurnError(MatchMoveError):
+    pass
+
+
+class InvalidMoveInputError(MatchMoveError):
+    pass
+
+
+class IllegalMoveError(MatchMoveError):
+    pass
+
+
+class GameOverError(MatchMoveError):
+    pass
 
 
 class InviteDatabase:
@@ -50,7 +83,23 @@ class InviteDatabase:
                     creator_token TEXT,
                     opponent_token TEXT,
                     creator_color TEXT,
-                    opponent_color TEXT
+                    opponent_color TEXT,
+                    fen TEXT,
+                    move_count INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS match_moves (
+                    match_id TEXT NOT NULL,
+                    move_number INTEGER NOT NULL,
+                    from_square TEXT NOT NULL,
+                    to_square TEXT NOT NULL,
+                    promotion TEXT,
+                    san TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (match_id, move_number)
                 )
                 """
             )
@@ -63,9 +112,18 @@ class InviteDatabase:
                 ("opponent_token", "TEXT"),
                 ("creator_color", "TEXT"),
                 ("opponent_color", "TEXT"),
+                ("fen", "TEXT"),
+                ("move_count", "INTEGER NOT NULL DEFAULT 0"),
             ):
                 if column not in columns:
                     connection.execute(f"ALTER TABLE matches ADD COLUMN {column} {definition}")
+            connection.execute(
+                "UPDATE matches SET fen = ? WHERE fen IS NULL",
+                (STARTING_FEN,),
+            )
+            connection.execute(
+                "UPDATE matches SET move_count = 0 WHERE move_count IS NULL",
+            )
 
     def create_invite(
         self, request: CreateInviteRequest, now: datetime | None = None
@@ -109,8 +167,8 @@ class InviteDatabase:
                 """
                 INSERT INTO matches (
                     id, invite_id, first_color, player_count, status,
-                    creator_token, creator_color
-                ) VALUES (?, ?, ?, 1, 'waiting', ?, ?)
+                    creator_token, creator_color, fen, move_count
+                ) VALUES (?, ?, ?, 1, 'waiting', ?, ?, ?, 0)
                 """,
                 (
                     match_id,
@@ -118,6 +176,7 @@ class InviteDatabase:
                     creator_color,
                     creator_token,
                     creator_color,
+                    STARTING_FEN,
                 ),
             )
 
@@ -206,25 +265,138 @@ class InviteDatabase:
             row = connection.execute(
                 """
                 SELECT id, status, creator_token, opponent_token,
-                       creator_color, opponent_color, first_color
+                       creator_color, opponent_color, first_color,
+                       fen, move_count
+                FROM matches
+                WHERE id = ?
+                """,
+                (match_id,),
+            ).fetchone()
+            if row is None:
+                return None
+
+            color = self._color_for_token(row, player_token)
+            if color is None:
+                return None
+
+            return self._match_status(connection, row, color)
+
+    def apply_move(
+        self, match_id: str, player_token: str, request: MoveRequest
+    ) -> MatchStatusResponse:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT id, status, creator_token, opponent_token,
+                       creator_color, opponent_color, first_color,
+                       fen, move_count
                 FROM matches
                 WHERE id = ?
                 """,
                 (match_id,),
             ).fetchone()
 
-        if row is None:
-            return None
+            if row is None:
+                raise MatchNotFoundError("This match could not be found.")
 
+            color = self._color_for_token(row, player_token)
+            if color is None:
+                raise MatchNotFoundError("This player is not part of the match.")
+            if row["status"] != "ready":
+                raise MatchNotReadyError("The match is not ready for moves.")
+
+            board = chess.Board(row["fen"])
+            if board.is_game_over():
+                raise GameOverError("This game is already over.")
+
+            expected_color = "white" if board.turn == chess.WHITE else "black"
+            if color != expected_color:
+                raise WrongTurnError(f"It is {expected_color}'s turn.")
+
+            try:
+                move = chess.Move.from_uci(
+                    f"{request.from_square}{request.to_square}{request.promotion or ''}"
+                )
+            except ValueError as caught_error:
+                raise InvalidMoveInputError("The move squares are invalid.") from caught_error
+
+            if move not in board.legal_moves:
+                raise IllegalMoveError("This move is not legal.")
+
+            san = board.san(move)
+            board.push(move)
+            move_number = row["move_count"] + 1
+            connection.execute(
+                """
+                UPDATE matches
+                SET fen = ?, move_count = ?
+                WHERE id = ?
+                """,
+                (board.fen(), move_number, match_id),
+            )
+            connection.execute(
+                """
+                INSERT INTO match_moves (
+                    match_id, move_number, from_square, to_square,
+                    promotion, san, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    match_id,
+                    move_number,
+                    request.from_square,
+                    request.to_square,
+                    request.promotion,
+                    san,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+            return self._match_status(connection, row, color, board.fen(), move_number)
+
+    @staticmethod
+    def _color_for_token(row: sqlite3.Row, player_token: str) -> str | None:
         if player_token == row["creator_token"]:
-            color = row["creator_color"] or row["first_color"]
-        elif player_token == row["opponent_token"]:
-            color = row["opponent_color"]
-        else:
-            return None
+            return row["creator_color"] or row["first_color"]
+        if player_token == row["opponent_token"]:
+            return row["opponent_color"]
+        return None
 
+    @staticmethod
+    def _match_status(
+        connection: sqlite3.Connection,
+        row: sqlite3.Row,
+        color: str,
+        fen: str | None = None,
+        move_count: int | None = None,
+    ) -> MatchStatusResponse:
+        current_fen = fen if fen is not None else row["fen"]
+        current_move_count = move_count if move_count is not None else row["move_count"]
+        last_move_row = connection.execute(
+            """
+            SELECT from_square, to_square, promotion, san
+            FROM match_moves
+            WHERE match_id = ?
+            ORDER BY move_number DESC
+            LIMIT 1
+            """,
+            (row["id"],),
+        ).fetchone()
+        last_move = None if last_move_row is None else MoveResponse(
+            from_square=last_move_row["from_square"],
+            to_square=last_move_row["to_square"],
+            promotion=last_move_row["promotion"],
+            san=last_move_row["san"],
+        )
+
+        board = chess.Board(current_fen)
         return MatchStatusResponse(
             match_id=row["id"],
             color=color,
             status=row["status"],
+            fen=current_fen,
+            turn="white" if board.turn == chess.WHITE else "black",
+            move_count=current_move_count,
+            last_move=last_move,
         )

@@ -3,13 +3,22 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, status
 
-from app.database import InviteDatabase
+from app.database import (
+    GameOverError,
+    IllegalMoveError,
+    InvalidMoveInputError,
+    InviteDatabase,
+    MatchNotFoundError,
+    MatchNotReadyError,
+    WrongTurnError,
+)
 from app.models import (
     CreateInviteRequest,
     CreateInviteResponse,
     InviteResponse,
     JoinMatchResponse,
     MatchStatusResponse,
+    MoveRequest,
 )
 
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parent.parent / "data" / "chess.db"
@@ -101,6 +110,29 @@ def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
         return match
+
+    @app.post(
+        "/api/matches/{match_id}/moves",
+        response_model=MatchStatusResponse,
+    )
+    def submit_move(
+        match_id: str,
+        request: MoveRequest,
+        player_token: str | None = Header(default=None, alias="X-Player-Token"),
+    ) -> MatchStatusResponse:
+        if player_token is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            return database.apply_move(match_id, player_token, request)
+        except MatchNotFoundError as caught_error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(caught_error)) from caught_error
+        except IllegalMoveError as caught_error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(caught_error)) from caught_error
+        except InvalidMoveInputError as caught_error:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(caught_error)) from caught_error
+        except (MatchNotReadyError, WrongTurnError, GameOverError) as caught_error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(caught_error)) from caught_error
 
     return app
 

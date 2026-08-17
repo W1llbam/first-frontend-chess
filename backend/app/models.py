@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +15,9 @@ class TimeControl(StrEnum):
     UNLIMITED = "unlimited"
     TEN_MINUTES = "10-minutes"
     FIVE_MINUTES = "5-minutes"
+
+
+PromotionPiece = Literal["q", "r", "b", "n"]
 
 
 class CreateInviteRequest(BaseModel):
@@ -48,9 +52,30 @@ class JoinMatchResponse(BaseModel):
     status: str
 
 
+class MoveRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_square: str = Field(alias="from")
+    to_square: str = Field(alias="to")
+    promotion: PromotionPiece | None = None
+
+
+class MoveResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    from_square: str = Field(alias="from")
+    to_square: str = Field(alias="to")
+    promotion: PromotionPiece | None = None
+    san: str
+
+
 class MatchStatusResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
     match_id: str = Field(alias="matchId")
     color: ColorChoice
     status: str
+    fen: str
+    turn: Literal["white", "black"]
+    move_count: int = Field(alias="moveCount")
+    last_move: MoveResponse | None = Field(alias="lastMove")
