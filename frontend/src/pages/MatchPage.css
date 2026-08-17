@@ -13,23 +13,6 @@
 .match-card h1 { margin: 0.4rem 0; }
 .match-card p { color: #5d6370; }
 
-.chessboard {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    width: min(100%, 36rem);
-    aspect-ratio: 1;
-    margin: 2rem auto 1rem;
-    border: 0.4rem solid #292b35;
-}
-
-.square {
-    display: grid;
-    place-items: center;
-    font-size: clamp(1.6rem, 7vw, 3rem);
-    line-height: 1;
-}
-
-.square.light { background: #f0d9b5; }
-.square.dark { background: #b58863; }
-.match-note { font-size: 0.9rem; }
+.turn-status { font-size: 0.9rem; }
+.reset-board-button { margin-bottom: 1rem; }
 .match-link { color: #292b35; font-weight: 600; }

@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import type { Square } from 'chess.js'
 import { getMatchStatus, InviteApiError, type MatchStatus } from '../api/invites'
+import ChessBoard from '../components/ChessBoard'
+import { applyMove, getLegalTargets, getTurn, STARTING_FEN } from '../chess/board'
 import './MatchPage.css'
 
 type MatchSession = { inviteId: string; playerToken: string; color: 'white' | 'black' }
-
-const pieces = [
-    ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'],
-    ['♟', '♟', '♟', '♟', '♟', '♟', '♟', '♟'],
-    ['', '', '', '', '', '', '', ''],
-    ['', '', '', '', '', '', '', ''],
-    ['', '', '', '', '', '', '', ''],
-    ['', '', '', '', '', '', '', ''],
-    ['♙', '♙', '♙', '♙', '♙', '♙', '♙', '♙'],
-    ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'],
-]
 
 function MatchPage() {
     const { matchId } = useParams<{ matchId: string }>()
@@ -22,6 +14,9 @@ function MatchPage() {
     const [errorStatus, setErrorStatus] = useState<number | null>(null)
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
     const [hasLoaded, setHasLoaded] = useState(false)
+    const [fen, setFen] = useState(STARTING_FEN)
+    const [selectedSquare, setSelectedSquare] = useState<Square | null>(null)
+    const [legalTargets, setLegalTargets] = useState<Square[]>([])
     const session = matchId ? readMatchSession(matchId) : null
     const playerToken = session?.playerToken
 
@@ -56,6 +51,31 @@ function MatchPage() {
         setCopyStatus('copied')
     }
 
+    function handleSquareClick(square: Square) {
+        if (legalTargets.includes(square) && selectedSquare) {
+            setFen(applyMove(fen, selectedSquare, square))
+            setSelectedSquare(null)
+            setLegalTargets([])
+            return
+        }
+
+        const nextTargets = getLegalTargets(fen, square)
+        if (nextTargets.length > 0) {
+            setSelectedSquare(square)
+            setLegalTargets(nextTargets)
+            return
+        }
+
+        setSelectedSquare(null)
+        setLegalTargets([])
+    }
+
+    function handleResetBoard() {
+        setFen(STARTING_FEN)
+        setSelectedSquare(null)
+        setLegalTargets([])
+    }
+
     if (!session || !matchId) {
         return <main className="match-page"><p>This match session is unavailable.</p></main>
     }
@@ -83,17 +103,18 @@ function MatchPage() {
                         {copyStatus === 'copied' ? 'Invite copied!' : 'Copy invite link'}
                     </button>
                 )}
-                <div className="chessboard" aria-label="Chessboard" role="grid">
-                    {pieces.flatMap((row, rowIndex) => row.map((piece, columnIndex) => (
-                        <div
-                            className={`square ${(rowIndex + columnIndex) % 2 === 0 ? 'light' : 'dark'}`}
-                            key={`${rowIndex}-${columnIndex}`}
-                        >
-                            {piece}
-                        </div>
-                    )))}
-                </div>
-                <p className="match-note">Moves and multiplayer synchronization are coming next.</p>
+                <p className="turn-status" aria-live="polite">
+                    {getTurn(fen) === 'w' ? 'White' : 'Black'} to move. Select a piece to move it.
+                </p>
+                <ChessBoard
+                    fen={fen}
+                    selectedSquare={selectedSquare}
+                    legalTargets={legalTargets}
+                    onSquareClick={handleSquareClick}
+                />
+                <button className="reset-board-button" type="button" onClick={handleResetBoard}>
+                    Reset board
+                </button>
                 <Link className="match-link" to="/">Return home</Link>
             </section>
         </main>
