@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { Square } from 'chess.js'
-import { getMatchStatus, InviteApiError, type MatchStatus } from '../api/invites'
+import { getMatchStatus, InviteApiError, submitMove, type MatchStatus } from '../api/invites'
 import ChessBoard from '../components/ChessBoard'
-import { applyMove, getLegalTargets, getTurn, STARTING_FEN } from '../chess/board'
+import { getLegalTargets, getPromotionForMove, STARTING_FEN } from '../chess/board'
 import './MatchPage.css'
 
 type MatchSession = { inviteId: string; playerToken: string; color: 'white' | 'black' }
@@ -17,18 +17,22 @@ function MatchPage() {
     const [fen, setFen] = useState(STARTING_FEN)
     const [selectedSquare, setSelectedSquare] = useState<Square | null>(null)
     const [legalTargets, setLegalTargets] = useState<Square[]>([])
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [moveError, setMoveError] = useState<string | null>(null)
+    const latestMoveCount = useRef(-1)
     const session = matchId ? readMatchSession(matchId) : null
     const playerToken = session?.playerToken
 
     useEffect(() => {
         if (!matchId || !playerToken) return
 
+        latestMoveCount.current = -1
         let isActive = true
         async function refreshMatch() {
             try {
                 const nextMatch = await getMatchStatus(matchId!, playerToken!)
                 if (isActive) {
-                    setMatch(nextMatch)
+                    applyServerState(nextMatch)
                     setErrorStatus(null)
                     setHasLoaded(true)
                 }
@@ -45,17 +49,43 @@ function MatchPage() {
         }
     }, [matchId, playerToken])
 
+    function applyServerState(nextMatch: MatchStatus) {
+        if (nextMatch.moveCount < latestMoveCount.current) return
+
+        latestMoveCount.current = nextMatch.moveCount
+        setMatch(nextMatch)
+        setFen(nextMatch.fen)
+        setSelectedSquare(null)
+        setLegalTargets([])
+        setMoveError(null)
+    }
+
     async function handleCopyInvite() {
         if (!session) return
         await navigator.clipboard.writeText(`${window.location.origin}/invite/${session.inviteId}`)
         setCopyStatus('copied')
     }
 
-    function handleSquareClick(square: Square) {
+    async function handleSquareClick(square: Square) {
+        if (isSubmitting) return
+
         if (legalTargets.includes(square) && selectedSquare) {
-            setFen(applyMove(fen, selectedSquare, square))
-            setSelectedSquare(null)
-            setLegalTargets([])
+            setIsSubmitting(true)
+            setMoveError(null)
+            try {
+                const nextMatch = await submitMove(matchId!, playerToken!, {
+                    from: selectedSquare,
+                    to: square,
+                    promotion: getPromotionForMove(fen, selectedSquare, square),
+                })
+                applyServerState(nextMatch)
+            } catch (caughtError: unknown) {
+                setMoveError(caughtError instanceof InviteApiError
+                    ? caughtError.detail
+                    : 'Unable to submit the move. Please try again.')
+            } finally {
+                setIsSubmitting(false)
+            }
             return
         }
 
@@ -66,12 +96,6 @@ function MatchPage() {
             return
         }
 
-        setSelectedSquare(null)
-        setLegalTargets([])
-    }
-
-    function handleResetBoard() {
-        setFen(STARTING_FEN)
         setSelectedSquare(null)
         setLegalTargets([])
     }
@@ -104,17 +128,16 @@ function MatchPage() {
                     </button>
                 )}
                 <p className="turn-status" aria-live="polite">
-                    {getTurn(fen) === 'w' ? 'White' : 'Black'} to move. Select a piece to move it.
+                    {match?.turn === 'black' ? 'Black' : 'White'} to move. Select a piece to move it.
                 </p>
+                {isSubmitting && <p aria-live="polite">Submitting move…</p>}
+                {moveError && <p role="alert">{moveError}</p>}
                 <ChessBoard
                     fen={fen}
                     selectedSquare={selectedSquare}
                     legalTargets={legalTargets}
                     onSquareClick={handleSquareClick}
                 />
-                <button className="reset-board-button" type="button" onClick={handleResetBoard}>
-                    Reset board
-                </button>
                 <Link className="match-link" to="/">Return home</Link>
             </section>
         </main>
