@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:frontend": "npm --prefix frontend test",
+    "test:frontend": "npm --prefix frontend test -- --run",
     "lint": "npm --prefix frontend exec -- eslint frontend tests/frontend",
     "build:frontend": "npm --prefix frontend run build",
     "test:backend": "uv run --directory backend pytest ../tests/backend"

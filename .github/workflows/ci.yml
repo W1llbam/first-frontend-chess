@@ -9,10 +9,6 @@ jobs:
   frontend-tests:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,24 +21,19 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefix frontend
 
       - name: Run tests
-        run: npm test -- --run
+        run: npm run test:frontend
 
       - name: Run lint
-        working-directory: .
         run: npm run lint
 
       - name: Build frontend
-        run: npm run build
+        run: npm run build:frontend
 
   backend-tests:
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
       - name: Checkout repository
@@ -60,7 +51,7 @@ jobs:
           cache-dependency-glob: backend/uv.lock
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --directory backend --locked
 
       - name: Run tests
-        run: uv run pytest ../tests/backend
+        run: npm run test:backend
