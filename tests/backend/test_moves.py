@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import sqlite3
 
 import chess
@@ -99,6 +100,29 @@ def test_wrong_turn_and_illegal_move_are_rejected(tmp_path):
     ).status_code == 409
 
 
+def test_concurrent_submissions_accept_only_one_move(tmp_path):
+    _, invite, _, database_path = create_ready_match(tmp_path)
+    clients = [TestClient(create_app(database_path)) for _ in range(2)]
+    endpoint = f"/api/matches/{invite['matchId']}/moves"
+
+    def submit(client):
+        return client.post(
+            endpoint,
+            headers={"X-Player-Token": invite["creatorToken"]},
+            json={"from": "e2", "to": "e4"},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(submit, clients))
+
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    state = clients[0].get(
+        f"/api/matches/{invite['matchId']}",
+        headers={"X-Player-Token": invite["creatorToken"]},
+    ).json()
+    assert state["moveCount"] == 1
+
+
 def test_invalid_move_shape_and_promotion_are_rejected(tmp_path):
     client, invite, _, _ = create_ready_match(tmp_path)
     endpoint = f"/api/matches/{invite['matchId']}/moves"
@@ -145,7 +169,11 @@ def test_castling_and_en_passant_are_validated(tmp_path):
             "UPDATE matches SET fen = ?, move_count = 0 WHERE id = ?",
             ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", invite["matchId"]),
         )
-    assert client.post(endpoint, headers=headers, json={"from": "e1", "to": "g1"}).status_code == 200
+    castling_response = client.post(endpoint, headers=headers, json={"from": "e1", "to": "g1"})
+    assert castling_response.status_code == 200
+    assert castling_response.json()["lastMove"] == {
+        "from": "e1", "to": "g1", "promotion": None, "san": "O-O",
+    }
 
     with sqlite3.connect(database_path) as connection:
         connection.execute(
@@ -156,7 +184,12 @@ def test_castling_and_en_passant_are_validated(tmp_path):
             "UPDATE matches SET fen = ?, move_count = 0 WHERE id = ?",
             ("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1", invite["matchId"]),
         )
-    assert client.post(endpoint, headers=headers, json={"from": "e5", "to": "d6"}).status_code == 200
+    en_passant_response = client.post(endpoint, headers=headers, json={"from": "e5", "to": "d6"})
+    assert en_passant_response.status_code == 200
+    assert en_passant_response.json()["lastMove"] == {
+        "from": "e5", "to": "d6", "promotion": None, "san": "exd6",
+    }
+    assert "3P4" in en_passant_response.json()["fen"]
 
 
 def test_game_over_match_rejects_moves(tmp_path):
@@ -174,6 +207,7 @@ def test_game_over_match_rejects_moves(tmp_path):
     )
 
     assert response.status_code == 409
+    assert response.json()["detail"] == "This game is already over."
 
 
 def test_existing_match_is_backfilled_with_starting_state(tmp_path):
