@@ -99,6 +99,19 @@ uv run --directory backend pytest ../tests/backend -k promotion
 
 The frontend tests cover application routing, match creation, invite joining, accessible board rendering, move submission, polling updates, and client-side session handling. The backend tests cover invite lifecycle, authentication by player token, legal and illegal moves, special moves, promotion, game-over rejection, persistence backfilling, and concurrent submissions.
 
+## Test coverage matrix
+
+| Area | Test file(s) | Main coverage |
+| --- | --- | --- |
+| Application routing | `tests/frontend/App.test.tsx` | Top-level routes and app rendering |
+| Match creation | `tests/frontend/pages/CreateMatchPage.test.tsx` | Settings, submission, session storage, and navigation |
+| Invite joining | `tests/frontend/pages/InvitePage.test.tsx` | Loading, joining, and expired, full, or invalid invite handling |
+| Match interaction | `tests/frontend/pages/MatchPage.test.tsx` | FEN rendering, legal targets, successful moves, errors, polling, and stale responses |
+| Invite backend | `tests/backend/test_invites.py` | Creation, expiration, joining, token checks, and full invites |
+| Move backend | `tests/backend/test_moves.py` | Legal moves, wrong turns, malformed input, promotion, castling, en passant, game over, persistence, and concurrency |
+
+The concurrency test matters because two requests can arrive for the same turn at nearly the same time. SQLite's `BEGIN IMMEDIATE` transaction serializes those writes, so only one submission succeeds and the competing submission receives a conflict response. This protects the persisted FEN, move count, and move history from being updated twice for one turn.
+
 ## Development workflow
 
 For a behavior change:
