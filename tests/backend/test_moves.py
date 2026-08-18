@@ -4,6 +4,7 @@ import sqlite3
 import chess
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from app.main import create_app
 
@@ -97,9 +98,11 @@ def test_join_broadcasts_ready_snapshot_to_connected_creator(tmp_path):
 def test_websocket_rejects_missing_or_invalid_tokens(tmp_path, query):
     client, invite, _, _ = create_ready_match(tmp_path)
 
-    with pytest.raises(Exception):
+    with pytest.raises(WebSocketDisconnect) as caught_error:
         with client.websocket_connect(f"/api/matches/{invite['matchId']}/events{query}"):
             pass
+
+    assert caught_error.value.code == 1008
 
 
 def test_move_requires_ready_match_and_valid_token(tmp_path):

@@ -158,7 +158,7 @@ Opens an authenticated real-time match update stream. Browser clients authentica
 ws(s)://host/api/matches/match-id/events?playerToken=player-token
 ```
 
-The server rejects missing, invalid, or non-player tokens with WebSocket close code `1008`. After connection, and after each successful join or move, the server sends a complete player-specific snapshot:
+The server validates the token before accepting the WebSocket. Missing, invalid, or non-player tokens are closed with WebSocket code `1008` before any match data is sent. After connection, and after each successful join or move, the server sends a complete player-specific snapshot:
 
 ```json
 {

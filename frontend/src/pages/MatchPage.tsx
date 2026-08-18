@@ -34,17 +34,19 @@ function MatchPage() {
         let connection: MatchConnection | null = null
         let socketConnected = false
 
-        async function refreshMatch() {
+        async function refreshMatch(): Promise<boolean> {
             try {
                 const nextMatch = await getMatchStatus(matchId!, playerToken!)
-                if (isActive) {
-                    applyServerState(nextMatch)
-                    setErrorStatus(null)
-                    setHasLoaded(true)
-                    if (socketConnected) stopPolling()
-                }
+                if (!isActive) return false
+
+                applyServerState(nextMatch)
+                setErrorStatus(null)
+                setHasLoaded(true)
+                if (socketConnected) stopPolling()
+                return true
             } catch (caughtError: unknown) {
                 if (isActive && caughtError instanceof InviteApiError) setErrorStatus(caughtError.status)
+                return false
             }
         }
 
@@ -75,8 +77,8 @@ function MatchPage() {
                 setHasLoaded(true)
             },
             onReconnect: async () => {
-                await refreshMatch()
-                if (isActive) stopPolling()
+                const refreshed = await refreshMatch()
+                if (refreshed && isActive) stopPolling()
             },
         })
         connection.start()
