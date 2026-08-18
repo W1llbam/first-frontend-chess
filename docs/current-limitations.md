@@ -11,8 +11,8 @@ This page records limitations of the current implementation. It is a factual sta
 
 ## Synchronization
 
-- Match updates use two-second HTTP polling.
-- WebSockets are not implemented.
+- Match updates use authenticated WebSocket snapshots with two-second HTTP polling as a recovery mechanism.
+- WebSocket clients are tracked in process memory; multiple application instances do not share broadcasts.
 - Stale responses are guarded by `moveCount`, but the UI is not a real-time push system.
 
 ## Identity and sessions

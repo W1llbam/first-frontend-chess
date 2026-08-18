@@ -2,7 +2,9 @@ from concurrent.futures import ThreadPoolExecutor
 import sqlite3
 
 import chess
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from app.main import create_app
 
@@ -48,6 +50,59 @@ def test_valid_move_updates_and_persists_match_state(tmp_path):
         headers={"X-Player-Token": invite["creatorToken"]},
     ).json()
     assert reloaded_state["fen"] == state["fen"]
+
+
+def test_authenticated_websocket_receives_initial_and_move_snapshots(tmp_path):
+    client, invite, opponent, _ = create_ready_match(tmp_path)
+    endpoint = f"/api/matches/{invite['matchId']}/events"
+
+    with client.websocket_connect(f"{endpoint}?playerToken={invite['creatorToken']}") as creator_ws:
+        assert creator_ws.receive_json()["match"]["color"] == "white"
+        with client.websocket_connect(f"{endpoint}?playerToken={opponent['playerToken']}") as opponent_ws:
+            assert opponent_ws.receive_json()["match"]["color"] == "black"
+
+            response = client.post(
+                f"/api/matches/{invite['matchId']}/moves",
+                headers={"X-Player-Token": invite["creatorToken"]},
+                json={"from": "e2", "to": "e4"},
+            )
+
+            assert response.status_code == 200
+            creator_event = creator_ws.receive_json()
+            opponent_event = opponent_ws.receive_json()
+            assert creator_event["type"] == "match.updated"
+            assert creator_event["match"]["moveCount"] == 1
+            assert creator_event["match"]["color"] == "white"
+            assert opponent_event["match"]["moveCount"] == 1
+            assert opponent_event["match"]["color"] == "black"
+
+
+def test_join_broadcasts_ready_snapshot_to_connected_creator(tmp_path):
+    client = TestClient(create_app(tmp_path / "test.db"))
+    invite = client.post(
+        "/api/invites",
+        json={"color": "white", "timeControl": "unlimited"},
+    ).json()
+    endpoint = f"/api/matches/{invite['matchId']}/events"
+
+    with client.websocket_connect(f"{endpoint}?playerToken={invite['creatorToken']}") as websocket:
+        assert websocket.receive_json()["match"]["status"] == "waiting"
+        opponent = client.post(f"/api/invites/{invite['id']}/join").json()
+        assert opponent["status"] == "ready"
+        event = websocket.receive_json()
+        assert event["match"]["status"] == "ready"
+        assert event["match"]["color"] == "white"
+
+
+@pytest.mark.parametrize("query", ["", "?playerToken=invalid"])
+def test_websocket_rejects_missing_or_invalid_tokens(tmp_path, query):
+    client, invite, _, _ = create_ready_match(tmp_path)
+
+    with pytest.raises(WebSocketDisconnect) as caught_error:
+        with client.websocket_connect(f"/api/matches/{invite['matchId']}/events{query}"):
+            pass
+
+    assert caught_error.value.code == 1008
 
 
 def test_move_requires_ready_match_and_valid_token(tmp_path):

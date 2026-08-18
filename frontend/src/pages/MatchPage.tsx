@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { Square } from 'chess.js'
 import { getMatchStatus, InviteApiError, submitMove, type MatchStatus } from '../api/invites'
+import { MatchConnection, type MatchConnectionState } from '../api/matchConnection'
 import ChessBoard from '../components/ChessBoard'
 import { getLegalTargets, getPromotionForMove, STARTING_FEN } from '../chess/board'
 import './MatchPage.css'
@@ -19,6 +20,7 @@ function MatchPage() {
     const [legalTargets, setLegalTargets] = useState<Square[]>([])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [moveError, setMoveError] = useState<string | null>(null)
+    const [connectionState, setConnectionState] = useState<MatchConnectionState>('polling-fallback')
     const latestMoveCount = useRef(-1)
     const session = matchId ? readMatchSession(matchId) : null
     const playerToken = session?.playerToken
@@ -28,24 +30,63 @@ function MatchPage() {
 
         latestMoveCount.current = -1
         let isActive = true
-        async function refreshMatch() {
+        let pollingInterval: number | null = null
+        let connection: MatchConnection | null = null
+        let socketConnected = false
+
+        async function refreshMatch(): Promise<boolean> {
             try {
                 const nextMatch = await getMatchStatus(matchId!, playerToken!)
-                if (isActive) {
-                    applyServerState(nextMatch)
-                    setErrorStatus(null)
-                    setHasLoaded(true)
-                }
+                if (!isActive) return false
+
+                applyServerState(nextMatch)
+                setErrorStatus(null)
+                setHasLoaded(true)
+                if (socketConnected) stopPolling()
+                return true
             } catch (caughtError: unknown) {
                 if (isActive && caughtError instanceof InviteApiError) setErrorStatus(caughtError.status)
+                return false
             }
         }
 
+        function startPolling() {
+            if (pollingInterval !== null) return
+            pollingInterval = window.setInterval(refreshMatch, 2000)
+        }
+
+        function stopPolling() {
+            if (pollingInterval === null) return
+            window.clearInterval(pollingInterval)
+            pollingInterval = null
+        }
+
         refreshMatch()
-        const interval = window.setInterval(refreshMatch, 2000)
+        startPolling()
+        connection = new MatchConnection(matchId, playerToken, {
+            onState: (state) => {
+                if (!isActive) return
+                setConnectionState(state)
+                socketConnected = state === 'connected'
+                if (state !== 'connected') startPolling()
+            },
+            onSnapshot: (nextMatch) => {
+                if (!isActive) return
+                applyServerState(nextMatch)
+                setErrorStatus(null)
+                setHasLoaded(true)
+            },
+            onReconnect: async () => {
+                const refreshed = await refreshMatch()
+                if (refreshed && isActive) stopPolling()
+            },
+        })
+        connection.start()
+
         return () => {
             isActive = false
-            window.clearInterval(interval)
+            stopPolling()
+            connection?.stop()
         }
     }, [matchId, playerToken])
 
@@ -129,6 +170,11 @@ function MatchPage() {
                 )}
                 <p className="turn-status" aria-live="polite">
                     {match?.turn === 'black' ? 'Black' : 'White'} to move. Select a piece to move it.
+                </p>
+                <p className="connection-status" aria-live="polite">
+                    {connectionState === 'connected' && 'Live updates connected.'}
+                    {connectionState === 'reconnecting' && 'Reconnecting to live updates…'}
+                    {connectionState === 'polling-fallback' && 'Live updates unavailable. Checking for updates…'}
                 </p>
                 {isSubmitting && <p aria-live="polite">Submitting move…</p>}
                 {moveError && <p role="alert">{moveError}</p>}

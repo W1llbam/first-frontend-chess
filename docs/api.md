@@ -1,6 +1,6 @@
 # REST API Reference
 
-This document describes the current REST API. The API is served under `/api` by FastAPI. WebSockets are not part of the current implementation.
+This document describes the current REST API and match event WebSocket. The API is served under `/api` by FastAPI.
 
 ## Conventions
 
@@ -148,7 +148,34 @@ Errors:
 - `401 Unauthorized` when the token header is missing;
 - `404 Not Found` when the match does not exist or the token is not a player in the match.
 
-The match page polls this endpoint every two seconds to detect opponent moves.
+The match page uses this endpoint for its initial load and as a two-second fallback while real-time events are unavailable.
+
+## `GET /api/matches/{matchId}/events` (WebSocket)
+
+Opens an authenticated real-time match update stream. Browser clients authenticate with the player token in the query string because native WebSockets cannot set the existing request header:
+
+```text
+ws(s)://host/api/matches/match-id/events?playerToken=player-token
+```
+
+The server validates the token before accepting the WebSocket. Missing, invalid, or non-player tokens are closed with WebSocket code `1008` before any match data is sent. After connection, and after each successful join or move, the server sends a complete player-specific snapshot:
+
+```json
+{
+  "type": "match.updated",
+  "match": {
+    "matchId": "match-id",
+    "color": "white",
+    "status": "ready",
+    "fen": "...",
+    "turn": "black",
+    "moveCount": 1,
+    "lastMove": null
+  }
+}
+```
+
+The WebSocket does not accept moves. Clients continue to submit moves through the REST endpoint above. The frontend falls back to two-second status polling while reconnecting and refreshes the HTTP snapshot after a connection is restored.
 
 ## `POST /api/matches/{matchId}/moves`
 

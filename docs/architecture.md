@@ -1,6 +1,6 @@
 # Architecture and Data Flow
 
-This document describes the current implementation of Chess With Friends. The application uses a React frontend, a FastAPI backend, and SQLite persistence. Match updates currently use HTTP polling; WebSockets are not part of the implementation.
+This document describes the current implementation of Chess With Friends. The application uses a React frontend, a FastAPI backend, and SQLite persistence. Match updates use authenticated WebSocket snapshots with HTTP polling as a recovery mechanism.
 
 ## System overview
 
@@ -46,7 +46,9 @@ The invite page:
 The match page:
 
 - loads the match using the stored player token;
-- polls `GET /api/matches/{matchId}` every two seconds;
+- opens `/api/matches/{matchId}/events` using the stored player token;
+- uses two-second polling while the socket is unavailable or reconnecting;
+- fetches a fresh HTTP snapshot after reconnecting;
 - keeps the current FEN, selected square, legal targets, and submission state locally;
 - submits moves through the REST API;
 - applies a server response only after the move succeeds;
@@ -167,6 +169,8 @@ The token is returned by the backend when a match is created or joined. The fron
 
 ## Polling and stale responses
 
-`MatchPage` performs an immediate status request and then repeats the request every two seconds. Each response includes `moveCount`, which acts as the current synchronization version.
+`MatchPage` performs an immediate status request and then prefers WebSocket snapshots. Each snapshot includes `moveCount`, which acts as the current synchronization version. While the socket is unavailable, the page repeats the status request every two seconds. After reconnecting, it fetches a fresh HTTP snapshot before stopping fallback polling.
 
 The page stores the latest applied count in a ref. A response with a lower count is ignored, so an older request cannot overwrite a newer board position if requests complete out of order.
+
+WebSocket broadcasts are held in an in-process registry. This is sufficient for the current single-process application; multi-instance deployments would need shared pub/sub or another cross-process event transport.
