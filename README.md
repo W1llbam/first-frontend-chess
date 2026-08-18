@@ -74,9 +74,9 @@ The backend test command requires the backend environment to have been installed
 ## Documentation
 
 - [Development guide](docs/development.md) — local workflow, tests, project conventions, and pull-request checks.
-- Architecture documentation — planned for a future documentation PR.
-- API reference — planned for a future documentation PR.
-- Data model documentation — planned for a future documentation PR.
+- [Architecture guide](docs/architecture.md) — frontend, backend, and match data flow.
+- [API reference](docs/api.md) — current REST endpoints, schemas, and error responses.
+- [Data model](docs/data-model.md) — SQLite tables, persistence, and startup compatibility behavior.
 
 ## Common issues
 
