@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 
 from app.database import (
     GameOverError,
@@ -20,6 +20,7 @@ from app.models import (
     MatchStatusResponse,
     MoveRequest,
 )
+from app.realtime import MatchConnection, MatchConnectionManager
 
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parent.parent / "data" / "chess.db"
 
@@ -27,6 +28,7 @@ DEFAULT_DATABASE_PATH = Path(__file__).resolve().parent.parent / "data" / "chess
 def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
     app = FastAPI(title="Chess With Friends API")
     database = InviteDatabase(database_path)
+    connections = MatchConnectionManager()
 
     @app.post(
         "/api/invites",
@@ -61,7 +63,7 @@ def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
         "/api/invites/{invite_id}/join",
         response_model=JoinMatchResponse,
     )
-    def join_invite(
+    async def join_invite(
         invite_id: str,
         player_token: str | None = Header(default=None, alias="X-Player-Token"),
     ) -> JoinMatchResponse:
@@ -95,6 +97,7 @@ def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
                 detail="This invite has already been joined.",
             )
 
+        await connections.broadcast_snapshot(match.match_id, database)
         return match
 
     @app.get("/api/matches/{match_id}", response_model=MatchStatusResponse)
@@ -115,7 +118,7 @@ def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
         "/api/matches/{match_id}/moves",
         response_model=MatchStatusResponse,
     )
-    def submit_move(
+    async def submit_move(
         match_id: str,
         request: MoveRequest,
         player_token: str | None = Header(default=None, alias="X-Player-Token"),
@@ -124,7 +127,9 @@ def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
         try:
-            return database.apply_move(match_id, player_token, request)
+            match = database.apply_move(match_id, player_token, request)
+            await connections.broadcast_snapshot(match_id, database)
+            return match
         except MatchNotFoundError as caught_error:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(caught_error)) from caught_error
         except IllegalMoveError as caught_error:
@@ -133,6 +138,39 @@ def create_app(database_path: Path | str = DEFAULT_DATABASE_PATH) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(caught_error)) from caught_error
         except (MatchNotReadyError, WrongTurnError, GameOverError) as caught_error:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(caught_error)) from caught_error
+
+    @app.websocket("/api/matches/{match_id}/events")
+    async def match_events(websocket: WebSocket, match_id: str) -> None:
+        player_token = websocket.query_params.get("playerToken")
+        if not player_token:
+            await websocket.close(code=1008)
+            return
+
+        match = database.get_match_for_token(match_id, player_token)
+        if match is None:
+            await websocket.close(code=1008)
+            return
+
+        connection = MatchConnection(websocket, player_token)
+        await websocket.accept()
+        await connections.add(match_id, connection)
+        try:
+            await websocket.send_json({
+                "type": "match.updated",
+                "match": match.model_dump(by_alias=True),
+            })
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+        finally:
+            await connections.remove(match_id, connection)
+
+    @app.on_event("shutdown")
+    async def close_connections() -> None:
+        await connections.close()
 
     return app
 
