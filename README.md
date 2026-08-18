@@ -77,6 +77,8 @@ The backend test command requires the backend environment to have been installed
 - [Architecture guide](docs/architecture.md) — frontend, backend, and match data flow.
 - [API reference](docs/api.md) — current REST endpoints, schemas, and error responses.
 - [Data model](docs/data-model.md) — SQLite tables, persistence, and startup compatibility behavior.
+- [Chess domain guide](docs/chess-domain.md) — FEN, SAN, move validation, and chess-state flow.
+- [Current limitations](docs/current-limitations.md) — factual product and technical limitations.
 
 ## Common issues
 
