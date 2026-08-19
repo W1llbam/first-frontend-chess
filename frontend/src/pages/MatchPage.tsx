@@ -108,7 +108,7 @@ function MatchPage() {
     }
 
     async function handleSquareClick(square: Square) {
-        if (isSubmitting) return
+        if (isSubmitting || isTerminalGameStatus(match?.gameStatus)) return
 
         if (legalTargets.includes(square) && selectedSquare) {
             setIsSubmitting(true)
@@ -151,6 +151,11 @@ function MatchPage() {
 
     const color = match?.color ?? session.color
     const status = match?.status ?? 'waiting'
+    const gameStatus = match?.gameStatus ?? 'active'
+    const isGameOver = isTerminalGameStatus(gameStatus)
+    const checkedColor = gameStatus === 'check' || gameStatus === 'checkmate'
+        ? match?.turn ?? null
+        : null
 
     return (
         <main className="match-page">
@@ -176,6 +181,11 @@ function MatchPage() {
                     {connectionState === 'reconnecting' && 'Reconnecting to live updates…'}
                     {connectionState === 'polling-fallback' && 'Live updates unavailable. Checking for updates…'}
                 </p>
+                {gameStatus !== 'active' && (
+                    <div className={`game-result ${isGameOver ? 'game-result-terminal' : ''}`} role="status" aria-live="polite">
+                        {getGameStatusMessage(gameStatus, match)}
+                    </div>
+                )}
                 {isSubmitting && <p aria-live="polite">Submitting move…</p>}
                 {moveError && <p role="alert">{moveError}</p>}
                 <ChessBoard
@@ -183,11 +193,31 @@ function MatchPage() {
                     selectedSquare={selectedSquare}
                     legalTargets={legalTargets}
                     onSquareClick={handleSquareClick}
+                    disabled={isGameOver}
+                    checkedColor={checkedColor}
                 />
                 <Link className="match-link" to="/">Return home</Link>
             </section>
         </main>
     )
+}
+
+function isTerminalGameStatus(gameStatus: MatchStatus['gameStatus'] | undefined) {
+    return gameStatus === 'checkmate' || gameStatus === 'stalemate' || gameStatus === 'draw'
+}
+
+function getGameStatusMessage(gameStatus: MatchStatus['gameStatus'], match: MatchStatus | null) {
+    if (gameStatus === 'check') return `${match?.turn === 'white' ? 'White' : 'Black'} is in check.`
+    if (gameStatus === 'checkmate') return `Checkmate. ${match?.winner === 'white' ? 'White' : 'Black'} wins.`
+    if (gameStatus === 'stalemate') return 'Stalemate. The game is drawn.'
+
+    const drawMessages: Record<NonNullable<MatchStatus['drawReason']>, string> = {
+        stalemate: 'Stalemate. The game is drawn.',
+        'insufficient-material': 'Draw by insufficient material.',
+        'fivefold-repetition': 'Draw by fivefold repetition.',
+        'seventy-five-move': 'Draw by the seventy-five-move rule.',
+    }
+    return drawMessages[match?.drawReason ?? 'insufficient-material']
 }
 
 function readMatchSession(matchId: string): MatchSession | null {

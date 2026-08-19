@@ -15,4 +15,13 @@
 
 .turn-status { font-size: 0.9rem; }
 .connection-status { font-size: 0.8rem; }
+.game-result {
+    border: 1px solid #d8dbe2;
+    border-radius: 0.5rem;
+    margin: 1rem auto;
+    padding: 0.75rem 1rem;
+    color: #292b35;
+    font-weight: 600;
+}
+.game-result-terminal { background: #f4f1e8; }
 .match-link { color: #292b35; font-weight: 600; }

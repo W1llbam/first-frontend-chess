@@ -1,5 +1,6 @@
 import secrets
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from app.models import (
     CreateInviteResponse,
     InviteResponse,
     JoinMatchResponse,
+    DrawReason,
+    GameStatus,
     MatchStatusResponse,
     MoveRequest,
     MoveResponse,
@@ -17,6 +20,18 @@ from app.models import (
 
 INVITE_LIFETIME = timedelta(minutes=10)
 STARTING_FEN = chess.Board().fen()
+TERMINAL_GAME_STATUSES = {
+    GameStatus.CHECKMATE,
+    GameStatus.STALEMATE,
+    GameStatus.DRAW,
+}
+
+
+@dataclass(frozen=True)
+class GameResult:
+    status: GameStatus
+    winner: str | None = None
+    draw_reason: DrawReason | None = None
 
 
 class MatchMoveError(Exception):
@@ -114,6 +129,9 @@ class InviteDatabase:
                 ("opponent_color", "TEXT"),
                 ("fen", "TEXT"),
                 ("move_count", "INTEGER NOT NULL DEFAULT 0"),
+                ("game_status", "TEXT NOT NULL DEFAULT 'active'"),
+                ("winner_color", "TEXT"),
+                ("draw_reason", "TEXT"),
             ):
                 if column not in columns:
                     connection.execute(f"ALTER TABLE matches ADD COLUMN {column} {definition}")
@@ -124,6 +142,17 @@ class InviteDatabase:
             connection.execute(
                 "UPDATE matches SET move_count = 0 WHERE move_count IS NULL",
             )
+            for row in connection.execute("SELECT id, fen FROM matches").fetchall():
+                board = self._board_for_match(connection, row["id"], row["fen"])
+                result = self._evaluate_board(board)
+                connection.execute(
+                    """
+                    UPDATE matches
+                    SET game_status = ?, winner_color = ?, draw_reason = ?
+                    WHERE id = ?
+                    """,
+                    (result.status.value, result.winner, result.draw_reason.value if result.draw_reason else None, row["id"]),
+                )
 
     def create_invite(
         self, request: CreateInviteRequest, now: datetime | None = None
@@ -167,8 +196,9 @@ class InviteDatabase:
                 """
                 INSERT INTO matches (
                     id, invite_id, first_color, player_count, status,
-                    creator_token, creator_color, fen, move_count
-                ) VALUES (?, ?, ?, 1, 'waiting', ?, ?, ?, 0)
+                    creator_token, creator_color, fen, move_count,
+                    game_status, winner_color, draw_reason
+                ) VALUES (?, ?, ?, 1, 'waiting', ?, ?, ?, 0, 'active', NULL, NULL)
                 """,
                 (
                     match_id,
@@ -266,7 +296,7 @@ class InviteDatabase:
                 """
                 SELECT id, status, creator_token, opponent_token,
                        creator_color, opponent_color, first_color,
-                       fen, move_count
+                       fen, move_count, game_status, winner_color, draw_reason
                 FROM matches
                 WHERE id = ?
                 """,
@@ -290,7 +320,7 @@ class InviteDatabase:
                 """
                 SELECT id, status, creator_token, opponent_token,
                        creator_color, opponent_color, first_color,
-                       fen, move_count
+                       fen, move_count, game_status, winner_color, draw_reason
                 FROM matches
                 WHERE id = ?
                 """,
@@ -306,8 +336,9 @@ class InviteDatabase:
             if row["status"] != "ready":
                 raise MatchNotReadyError("The match is not ready for moves.")
 
-            board = chess.Board(row["fen"])
-            if board.is_game_over():
+            board = self._board_for_match(connection, match_id, row["fen"])
+            current_result = self._evaluate_board(board)
+            if row["game_status"] in {status.value for status in TERMINAL_GAME_STATUSES} or current_result.status in TERMINAL_GAME_STATUSES:
                 raise GameOverError("This game is already over.")
 
             expected_color = "white" if board.turn == chess.WHITE else "black"
@@ -327,13 +358,22 @@ class InviteDatabase:
             san = board.san(move)
             board.push(move)
             move_number = row["move_count"] + 1
+            result = self._evaluate_board(board)
             connection.execute(
                 """
                 UPDATE matches
-                SET fen = ?, move_count = ?
+                SET fen = ?, move_count = ?, game_status = ?,
+                    winner_color = ?, draw_reason = ?
                 WHERE id = ?
                 """,
-                (board.fen(), move_number, match_id),
+                (
+                    board.fen(),
+                    move_number,
+                    result.status.value,
+                    result.winner,
+                    result.draw_reason.value if result.draw_reason else None,
+                    match_id,
+                ),
             )
             connection.execute(
                 """
@@ -353,7 +393,16 @@ class InviteDatabase:
                 ),
             )
 
-            return self._match_status(connection, row, color, board.fen(), move_number)
+            return self._match_status(
+                connection,
+                row,
+                color,
+                board.fen(),
+                move_number,
+                result.status,
+                result.winner,
+                result.draw_reason,
+            )
 
     @staticmethod
     def _color_for_token(row: sqlite3.Row, player_token: str) -> str | None:
@@ -370,6 +419,9 @@ class InviteDatabase:
         color: str,
         fen: str | None = None,
         move_count: int | None = None,
+        game_status: GameStatus | None = None,
+        winner: str | None = None,
+        draw_reason: DrawReason | None = None,
     ) -> MatchStatusResponse:
         current_fen = fen if fen is not None else row["fen"]
         current_move_count = move_count if move_count is not None else row["move_count"]
@@ -399,4 +451,50 @@ class InviteDatabase:
             turn="white" if board.turn == chess.WHITE else "black",
             move_count=current_move_count,
             last_move=last_move,
+            game_status=game_status if game_status is not None else row["game_status"],
+            winner=winner if game_status is not None else row["winner_color"],
+            draw_reason=draw_reason if game_status is not None else row["draw_reason"],
         )
+
+    @staticmethod
+    def _board_for_match(
+        connection: sqlite3.Connection, match_id: str, stored_fen: str
+    ) -> chess.Board:
+        board = chess.Board()
+        move_rows = connection.execute(
+            """
+            SELECT from_square, to_square, promotion
+            FROM match_moves
+            WHERE match_id = ?
+            ORDER BY move_number ASC
+            """,
+            (match_id,),
+        ).fetchall()
+
+        try:
+            for move_row in move_rows:
+                board.push(chess.Move.from_uci(
+                    f"{move_row['from_square']}{move_row['to_square']}{move_row['promotion'] or ''}"
+                ))
+        except (ValueError, chess.IllegalMoveError):
+            return chess.Board(stored_fen)
+
+        return board if board.fen() == stored_fen else chess.Board(stored_fen)
+
+    @staticmethod
+    def _evaluate_board(board: chess.Board) -> GameResult:
+        outcome = board.outcome(claim_draw=False)
+        if outcome is not None:
+            if outcome.termination == chess.Termination.CHECKMATE:
+                winner = "black" if board.turn == chess.WHITE else "white"
+                return GameResult(GameStatus.CHECKMATE, winner=winner)
+            if outcome.termination == chess.Termination.STALEMATE:
+                return GameResult(GameStatus.STALEMATE, draw_reason=DrawReason.STALEMATE)
+            if outcome.termination == chess.Termination.INSUFFICIENT_MATERIAL:
+                return GameResult(GameStatus.DRAW, draw_reason=DrawReason.INSUFFICIENT_MATERIAL)
+            if outcome.termination == chess.Termination.FIVEFOLD_REPETITION:
+                return GameResult(GameStatus.DRAW, draw_reason=DrawReason.FIVEFOLD_REPETITION)
+            if outcome.termination == chess.Termination.SEVENTYFIVE_MOVES:
+                return GameResult(GameStatus.DRAW, draw_reason=DrawReason.SEVENTY_FIVE_MOVE)
+
+        return GameResult(GameStatus.CHECK if board.is_check() else GameStatus.ACTIVE)

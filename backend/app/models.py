@@ -5,6 +5,21 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class GameStatus(StrEnum):
+    ACTIVE = "active"
+    CHECK = "check"
+    CHECKMATE = "checkmate"
+    STALEMATE = "stalemate"
+    DRAW = "draw"
+
+
+class DrawReason(StrEnum):
+    STALEMATE = "stalemate"
+    INSUFFICIENT_MATERIAL = "insufficient-material"
+    FIVEFOLD_REPETITION = "fivefold-repetition"
+    SEVENTY_FIVE_MOVE = "seventy-five-move"
+
+
 class ColorChoice(StrEnum):
     WHITE = "white"
     BLACK = "black"
@@ -79,3 +94,6 @@ class MatchStatusResponse(BaseModel):
     turn: Literal["white", "black"]
     move_count: int = Field(alias="moveCount")
     last_move: MoveResponse | None = Field(alias="lastMove")
+    game_status: GameStatus = Field(alias="gameStatus")
+    winner: Literal["white", "black"] | None = None
+    draw_reason: DrawReason | None = Field(default=None, alias="drawReason")
