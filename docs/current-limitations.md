@@ -5,7 +5,7 @@ This page records limitations of the current implementation. It is a factual sta
 ## Gameplay
 
 - The selected time controls are stored with the invite, but clocks are not implemented.
-- There is no dedicated game-result model or result-focused UI.
+- Draw claims for threefold repetition and the fifty-move rule are not implemented; automatic draw results are supported.
 - There is no rematch, resign, draw offer, chat, spectator mode, or move-history review UI.
 - The database stores the full accepted move history, but the current API exposes only `lastMove`.
 

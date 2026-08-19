@@ -4,6 +4,8 @@ export type BoardSquare = {
     square: Square
     piece: string
     pieceName: string | null
+    pieceColor: Color | null
+    pieceType: string | null
     isLight: boolean
 }
 
@@ -36,6 +38,8 @@ export function getBoardSquares(fen: string): BoardSquare[] {
             square,
             piece: piece ? pieceSymbols[piece.color][piece.type] : '',
             pieceName: piece ? `${piece.color === 'w' ? 'White' : 'Black'} ${pieceNames[piece.type]}` : null,
+            pieceColor: piece?.color ?? null,
+            pieceType: piece?.type ?? null,
             isLight,
         }
     }))

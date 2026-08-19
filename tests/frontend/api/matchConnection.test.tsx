@@ -29,6 +29,9 @@ const snapshot: MatchStatus = {
     turn: 'white',
     moveCount: 0,
     lastMove: null,
+    gameStatus: 'active',
+    winner: null,
+    drawReason: null,
 }
 
 describe('MatchConnection', () => {

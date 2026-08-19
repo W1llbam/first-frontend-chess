@@ -124,6 +124,9 @@ Successful response: `200 OK`
   "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
   "turn": "black",
   "moveCount": 1,
+  "gameStatus": "active",
+  "winner": null,
+  "drawReason": null,
   "lastMove": {
     "from": "e2",
     "to": "e4",
@@ -141,6 +144,9 @@ Response fields:
 - `fen`: complete current board state in Forsyth–Edwards Notation;
 - `turn`: `white` or `black`;
 - `moveCount`: number of accepted moves;
+- `gameStatus`: `active`, `check`, `checkmate`, `stalemate`, or `draw`;
+- `winner`: winning color for checkmate, otherwise `null`;
+- `drawReason`: `stalemate`, `insufficient-material`, `fivefold-repetition`, or `seventy-five-move` for draws, otherwise `null`;
 - `lastMove`: latest move, or `null` before the first move.
 
 Errors:
@@ -164,10 +170,13 @@ The server validates the token before accepting the WebSocket. Missing, invalid,
 {
   "type": "match.updated",
   "match": {
-    "matchId": "match-id",
-    "color": "white",
-    "status": "ready",
-    "fen": "...",
+  "matchId": "match-id",
+  "color": "white",
+  "status": "ready",
+  "gameStatus": "active",
+  "winner": null,
+  "drawReason": null,
+  "fen": "...",
     "turn": "black",
     "moveCount": 1,
     "lastMove": null

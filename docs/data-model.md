@@ -36,6 +36,9 @@ erDiagram
         string first_color
         integer player_count
         string status
+        string game_status
+        string winner_color
+        string draw_reason
         string creator_token
         string opponent_token
         string creator_color
@@ -81,6 +84,9 @@ Creating an invite also creates its waiting match in the same database operation
 | `first_color` | Color assigned to the creator when the match is created. |
 | `player_count` | Number of players currently assigned, initially `1` and then `2`. |
 | `status` | Currently `waiting` or `ready`. |
+| `game_status` | Persisted chess state: `active`, `check`, `checkmate`, `stalemate`, or `draw`. |
+| `winner_color` | Winning color for checkmate, otherwise null. |
+| `draw_reason` | Automatic draw reason, otherwise null. |
 | `creator_token` | Anonymous token issued to the creator. |
 | `opponent_token` | Anonymous token issued when the invite is joined. |
 | `creator_color` | Resolved color of the creator. |
@@ -90,7 +96,7 @@ Creating an invite also creates its waiting match in the same database operation
 
 The creator starts with one player and a resolved color. When an opponent joins, the opponent receives the opposite color, `player_count` becomes two, and `status` becomes `ready`.
 
-Moves are accepted only for a ready match. Each accepted move replaces `fen` with the new board position and increments `move_count`.
+Moves are accepted only for a ready, non-terminal match. Each accepted move replaces `fen` with the new board position, increments `move_count`, and persists the evaluated game result. Repetition-based rules are evaluated by replaying the stored move history because FEN alone does not contain repetition history.
 
 ## `match_moves`
 
@@ -116,6 +122,8 @@ Examples of SAN stored in this table include `e4`, `exd6`, `O-O`, and `e8=Q+`.
 - missing columns on an existing `matches` table are added with `ALTER TABLE`;
 - existing matches with no `fen` receive the starting position;
 - existing matches with no `move_count` receive zero.
+- missing result columns are added;
+- existing match results are recalculated from the stored FEN and move history.
 
 This is a lightweight additive backfill approach. It is not a versioned migration framework: the project does not currently provide migration identifiers, rollback migrations, or a separate migration CLI.
 

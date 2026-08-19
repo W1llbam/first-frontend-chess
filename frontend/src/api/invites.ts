@@ -2,6 +2,8 @@ export type ColorChoice = 'white' | 'black' | 'random'
 export type TimeControl = 'unlimited' | '10-minutes' | '5-minutes'
 export type PlayerColor = 'white' | 'black'
 export type PromotionPiece = 'q' | 'r' | 'b' | 'n'
+export type GameStatus = 'active' | 'check' | 'checkmate' | 'stalemate' | 'draw'
+export type DrawReason = 'stalemate' | 'insufficient-material' | 'fivefold-repetition' | 'seventy-five-move'
 
 export interface CreateInviteRequest {
   color: ColorChoice
@@ -37,6 +39,9 @@ export interface MatchStatus {
   turn: PlayerColor
   moveCount: number
   lastMove: LastMove | null
+  gameStatus: GameStatus
+  winner: PlayerColor | null
+  drawReason: DrawReason | null
 }
 
 export interface LastMove {

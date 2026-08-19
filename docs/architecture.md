@@ -147,6 +147,8 @@ sequenceDiagram
 
 The backend remains authoritative for turns, legal moves, promotion, castling, en passant, and rejection of moves after game over. A successful move returns the complete current snapshot, including the new FEN and `moveCount`.
 
+The backend also evaluates and persists the game result. `gameStatus` distinguishes active play, check, checkmate, stalemate, and automatic draws. Checkmate includes `winner`; draws include `drawReason`. Threefold repetition and the fifty-move rule remain claimable conditions and do not end the game automatically.
+
 ## Local match sessions
 
 Each browser stores a match session under:

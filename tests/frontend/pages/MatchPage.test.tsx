@@ -31,6 +31,9 @@ function matchState(overrides: Partial<MatchStatus> = {}): MatchStatus {
         turn: 'white',
         moveCount: 0,
         lastMove: null,
+        gameStatus: 'active',
+        winner: null,
+        drawReason: null,
         ...overrides,
     }
 }
@@ -72,6 +75,44 @@ describe('MatchPage', () => {
         expect(screen.getByRole('grid', { name: 'Chessboard' })).toBeInTheDocument()
         expect(await screen.findByRole('gridcell', { name: 'e2, White pawn' })).toBeInTheDocument()
         expect(screen.getByText(/White to move/)).toBeInTheDocument()
+    })
+
+    it('highlights the checked king while keeping interaction enabled', async () => {
+        const checkFen = '4k3/4R3/8/8/8/8/8/4K3 b - - 1 1'
+        renderMatch(matchState({
+            fen: checkFen,
+            turn: 'black',
+            gameStatus: 'check',
+        }))
+
+        const king = await screen.findByRole('gridcell', { name: 'e8, Black king' })
+        expect(king).toHaveClass('in-check')
+        expect(king).not.toBeDisabled()
+        expect(screen.getByRole('status')).toHaveTextContent('Black is in check.')
+    })
+
+    it('shows the winner and disables the final board after checkmate', async () => {
+        const checkmateFen = '7k/6Q1/6K1/8/8/8/8/8 b - - 1 1'
+        renderMatch(matchState({
+            fen: checkmateFen,
+            turn: 'black',
+            gameStatus: 'checkmate',
+            winner: 'white',
+        }))
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Checkmate. White wins.')
+        expect(screen.getByRole('grid')).toBeInTheDocument()
+        expect(screen.getAllByRole('gridcell').every((square) => (square as HTMLButtonElement).disabled)).toBe(true)
+    })
+
+    it('shows the draw reason and preserves the final board', async () => {
+        renderMatch(matchState({
+            gameStatus: 'draw',
+            drawReason: 'insufficient-material',
+        }))
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Draw by insufficient material.')
+        expect(screen.getByRole('grid')).toBeInTheDocument()
     })
 
     it('highlights legal destinations and submits the selected move', async () => {

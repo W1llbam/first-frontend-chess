@@ -51,6 +51,9 @@ function matchState(overrides: Partial<MatchStatus> = {}): MatchStatus {
         turn: 'white',
         moveCount: 0,
         lastMove: null,
+        gameStatus: 'active',
+        winner: null,
+        drawReason: null,
         ...overrides,
     }
 }

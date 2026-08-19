@@ -33,6 +33,11 @@
     filter: brightness(1.08);
 }
 
+.square:disabled {
+    cursor: default;
+    opacity: 1;
+}
+
 .square:focus-visible {
     outline: 3px solid #aa3bff;
     outline-offset: -3px;
@@ -41,6 +46,10 @@
 
 .square.selected {
     box-shadow: inset 0 0 0 5px #aa3bff;
+}
+
+.square.in-check {
+    box-shadow: inset 0 0 0 5px #c0392b;
 }
 
 .square.legal-target::after {

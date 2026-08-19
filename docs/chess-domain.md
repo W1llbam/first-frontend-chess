@@ -84,5 +84,5 @@ The frontend's current promotion helper defaults a pawn reaching the back rank t
 
 - The API returns `lastMove`, but the database stores the complete accepted move history.
 - The frontend does not currently expose a complete move-history review interface.
-- The API does not expose a dedicated checkmate, stalemate, or winner result model.
-- A game-over board is rejected for subsequent moves, but terminal-result presentation is not yet a separate domain state in the UI.
+- The API exposes persisted `gameStatus`, `winner`, and `drawReason` fields for check, checkmate, stalemate, and automatic draws.
+- Threefold repetition and the fifty-move rule remain claimable conditions and are not automatic terminal results.
