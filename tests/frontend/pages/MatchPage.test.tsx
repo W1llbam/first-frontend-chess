@@ -91,6 +91,13 @@ describe('MatchPage', () => {
         expect(screen.getByRole('status')).toHaveTextContent('Black is in check.')
     })
 
+    it('does not highlight a king in an active position', async () => {
+        renderMatch(matchState())
+
+        const king = await screen.findByRole('gridcell', { name: 'e8, Black king' })
+        expect(king).not.toHaveClass('in-check')
+    })
+
     it('shows the winner and disables the final board after checkmate', async () => {
         const checkmateFen = '7k/6Q1/6K1/8/8/8/8/8 b - - 1 1'
         renderMatch(matchState({

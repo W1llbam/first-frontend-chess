@@ -20,7 +20,9 @@ function ChessBoard({ fen, selectedSquare, legalTargets, onSquareClick, disabled
             {squares.map(({ square, piece, pieceName, pieceColor, pieceType, isLight }) => {
                 const isSelected = square === selectedSquare
                 const isLegalTarget = legalTargets.includes(square)
-                const isCheckedKing = pieceType === 'k' && pieceColor === (checkedColor === 'white' ? 'w' : 'b')
+                const isCheckedKing = checkedColor !== null
+                    && pieceType === 'k'
+                    && pieceColor === (checkedColor === 'white' ? 'w' : 'b')
                 const squareLabel = pieceName ? `${square}, ${pieceName}` : `${square}, empty`
 
                 return (
